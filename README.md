@@ -1,4 +1,4 @@
-# WiFi Proxy
+# RoboDog ESP32 WiFi Proxy
 
 A CLI tool to connect a secondary USB WiFi adapter to a different access point and proxy web requests to devices on that network. Designed for controlling ESP32-based robot dogs and similar IoT devices from your main computer.
 

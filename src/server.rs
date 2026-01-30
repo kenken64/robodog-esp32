@@ -106,13 +106,17 @@ fn generate_html(stream_url: &str) -> String {
     <style>
         .btn-press:active {{ transform: scale(0.95); }}
         .key-active {{ background-color: #10b981 !important; transform: scale(0.95); }}
+        .gamepad-status {{ position: fixed; top: 10px; right: 10px; padding: 6px 12px; border-radius: 4px; font-size: 12px; z-index: 1000; }}
+        .gamepad-connected {{ background: #166534; color: #fff; }}
+        .gamepad-disconnected {{ background: #374151; color: #6b7280; }}
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
+    <div id="gamepad-status" class="gamepad-status gamepad-disconnected">Gamepad: Press any button</div>
     <div class="container mx-auto px-4 py-8 max-w-4xl">
         <header class="text-center mb-6">
             <h1 class="text-2xl font-bold text-cyan-400">ESP32 Robot Dog Control</h1>
-            <p class="text-gray-500 text-sm">Use arrow keys to move | Space = Steady</p>
+            <p class="text-gray-500 text-sm">WASD/Arrows to move | Space = Stop | Gamepad supported</p>
         </header>
 
         <!-- Camera Stream -->
@@ -343,6 +347,96 @@ fn generate_html(stream_url: &str) -> String {
             `;
             servoContainer.appendChild(div);
         }}
+
+        // Gamepad support
+        const gamepadStatus = document.getElementById('gamepad-status');
+        let gamepadIndex = null;
+        let gpState = {{ forward: false, backward: false, left: false, right: false, buttons: {{}} }};
+
+        const updateGamepadStatus = (connected, name = '') => {{
+            if (connected) {{
+                gamepadStatus.textContent = 'Gamepad: ' + (name.length > 25 ? name.substring(0, 25) + '...' : name);
+                gamepadStatus.className = 'gamepad-status gamepad-connected';
+            }} else {{
+                gamepadStatus.textContent = 'Gamepad: Press any button';
+                gamepadStatus.className = 'gamepad-status gamepad-disconnected';
+            }}
+        }};
+
+        window.addEventListener('gamepadconnected', (e) => {{
+            gamepadIndex = e.gamepad.index;
+            updateGamepadStatus(true, e.gamepad.id);
+            console.log('Gamepad connected:', e.gamepad.id);
+        }});
+
+        window.addEventListener('gamepaddisconnected', (e) => {{
+            if (e.gamepad.index === gamepadIndex) {{
+                gamepadIndex = null;
+                updateGamepadStatus(false);
+                sendMove(3); sendMove(6);
+                gpState = {{ forward: false, backward: false, left: false, right: false, buttons: {{}} }};
+            }}
+        }});
+
+        const AXIS_THRESHOLD = 0.5;
+
+        const pollGamepad = () => {{
+            if (gamepadIndex === null) {{
+                requestAnimationFrame(pollGamepad);
+                return;
+            }}
+
+            const gp = navigator.getGamepads()[gamepadIndex];
+            if (!gp) {{
+                requestAnimationFrame(pollGamepad);
+                return;
+            }}
+
+            const leftX = gp.axes[0] || 0;
+            const leftY = gp.axes[1] || 0;
+            const dpadUp = gp.buttons[12]?.pressed || false;
+            const dpadDown = gp.buttons[13]?.pressed || false;
+            const dpadLeft = gp.buttons[14]?.pressed || false;
+            const dpadRight = gp.buttons[15]?.pressed || false;
+
+            const wantForward = leftY < -AXIS_THRESHOLD || dpadUp;
+            const wantBackward = leftY > AXIS_THRESHOLD || dpadDown;
+            const wantLeft = leftX < -AXIS_THRESHOLD || dpadLeft;
+            const wantRight = leftX > AXIS_THRESHOLD || dpadRight;
+
+            if (wantForward && !gpState.forward) {{ sendMove(1); gpState.forward = true; }}
+            else if (!wantForward && gpState.forward) {{ sendMove(3); gpState.forward = false; }}
+
+            if (wantBackward && !gpState.backward) {{ sendMove(5); gpState.backward = true; }}
+            else if (!wantBackward && gpState.backward) {{ sendMove(3); gpState.backward = false; }}
+
+            if (wantLeft && !gpState.left) {{ sendMove(2); gpState.left = true; }}
+            else if (!wantLeft && gpState.left) {{ sendMove(6); gpState.left = false; }}
+
+            if (wantRight && !gpState.right) {{ sendMove(4); gpState.right = true; }}
+            else if (!wantRight && gpState.right) {{ sendMove(6); gpState.right = false; }}
+
+            const handleBtn = (idx, action) => {{
+                const pressed = gp.buttons[idx]?.pressed || false;
+                if (pressed && !gpState.buttons[idx]) action();
+                gpState.buttons[idx] = pressed;
+            }};
+
+            handleBtn(0, () => sendAction(1));  // A: Steady
+            handleBtn(1, () => sendAction(2));  // B: Stay Low
+            handleBtn(2, () => sendAction(3));  // X: Hand Shake
+            handleBtn(3, () => sendAction(4));  // Y: Jump
+            handleBtn(4, () => {{ if (!streaming) streamBtn.click(); }}); // LB: Camera ON
+            handleBtn(5, () => {{ if (streaming) streamBtn.click(); }});  // RB: Camera OFF
+            handleBtn(6, () => sendAction(5));  // LT: Action A
+            handleBtn(7, () => sendAction(6));  // RT: Action B
+            handleBtn(8, () => sendAction(7));  // Select: Action C
+            handleBtn(9, () => sendAction(8));  // Start: Init Pos
+
+            requestAnimationFrame(pollGamepad);
+        }};
+
+        requestAnimationFrame(pollGamepad);
     </script>
 </body>
 </html>"##,
