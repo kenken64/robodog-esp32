@@ -1,0 +1,20 @@
+[package]
+name = "wifi-proxy"
+version = "0.1.0"
+edition = "2024"
+description = "A CLI tool to connect a secondary USB WiFi adapter to a different access point"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = "2"
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+toml = "0.8"
+dirs = "5"
+tokio-util = { version = "0.7", features = ["io"] }
