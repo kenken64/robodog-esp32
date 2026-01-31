@@ -369,7 +369,7 @@
     </div>
 
     <script>
-        const STREAM_URL = "{{ stream_url }}";
+        const STREAM_URL = "{{ stream_url | safe }}";
 
         // Stream toggle
         const streamImg = document.getElementById('stream');
